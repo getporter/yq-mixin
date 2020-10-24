@@ -1,97 +1,252 @@
-# A Porter Mixin Skeleton
+# yq Mixin for Porter
 
-[![Build Status](https://dev.azure.com/getporter/porter/_apis/build/status/yq?branchName=main)](https://dev.azure.com/getporter/porter/_build/latest?definitionId=13&branchName=main)
+This is a mixin for Porter that provides the [yq] CLI.
 
-This repository contains the skeleton structure of a Porter Mixin. You can clone
-this repository and use it as a starting point to build new mixins. The
-structure of this project matches closely with existing Porter [Mixins](https://porter.sh/mixins).
+[![Build Status](https://dev.azure.com/getporter/porter/_apis/build/status/yq-mixin?branchName=main)](TODO)
 
-1. Create a new repository in GitHub [using this repository as a
-   template](https://help.github.com/en/articles/creating-a-repository-from-a-template).
-1. Go 1.13 or higher is required. You can choose to clone into the GOPATH or not according to preference.
-1. Rename the `cmd/yq` and `pkg/yq` directories to `cmd/YOURMIXIN` and
-   `pkg/YOURMIXIN`.
-1. Find the text `get.porter.sh/mixin/yq` in the repository and change it to
-   `github.com/YOURNAME/YOURREPO`.
-1. Find `PKG = get.porter.sh/mixin/$(MIXIN)` in the Makefile and change it to `PKG = github.com/YOURNAME/YOURREPO`.
-1. Find any remaining `yq` text in the repository and replace it with `YOURMIXIN`.
-1. In `pkg/YOURMIXIN/version.go` replace `YOURNAME` with the name you would like displayed as the mixin
-   author. This value is displayed as the author of your mixin when `porter mixins list` is run.
-1. Replace the `YOURNAME` instances in `pkg/YOURMIXIN/version_test.go` with the name used above.
-1. Run `make clean build test-unit xbuild-all test-integration` to try out all the make targets and
-   verify that everything executes without failing. You may need to fix a test string or two.
-1. Run `make install` to install your mixin into the Porter home directory. If
-   you don't already have Porter installed, [install](https://porter.sh/install) it first.
-1. Now your mixin is installed, you are ready start customizing and iterating on
-   your mixin!
+## Mixin Configuration
 
-## Customize your mixin
+When you declare the mixin, you can also configure additional extensions to install
 
-This mixin is ready to wrap an existing command-line tool. The shortest path
-would be to edit `build.go` to add the instructions to download the tool
-and you are all set. It will look and feel like the [gcloud](https://porter.sh/mixins/gcloud)
-or [aws](https://porter.sh/mixins/aws) mixins, both of which are built on top of the exec mixin.
+**Specify the yq client version**
+```yaml
+mixins:
+- yq:
+    clientVersion: "3.4.0"
+```
 
-Edit the `Build` function in `pkg/yq/build.go`.
-Here you can add any Dockerfile lines that you require to download and install
-additional tools, configuration files, etc necessary for your mixin. The Build
-function should write the Dockerfile lines to `m.Out` which is a pipe from the
-mixin back to porter.
-You will also find the basic logic supporting mixin configuration.  Support for `clientVersion` is ready to go, which enables users to specify the version of the underlying tool/utility provided by the mixin, if applicable.
+## Mixin Syntax and Examples
 
-Search for `TODO` in the code and follow the instructions to customize the mixin.
+See the [yq documentation](https://mikefarah.gitbook.io/yq/) for the supported commands.
 
-Here is an example from the aws mixin, where it downloads the latest version of
-of the aws binary and installs it:
+All commands support [suppress-output](#suppress-output) and [outputs].
 
-https://github.com/getporter/aws-mixin/blob/001c19bfe06d248143353a55f07a42c913579481/pkg/aws/build.go#L7
+### Suppress Output
 
-This is enough to have a working mixin. Run `make build install` and then test
-it out with a bundle.
+The `suppress-output` field controls whether output from the mixin should be
+prevented from printing to the console. By default this value is false, using
+Porter's default behavior of hiding known sensitive values. When 
+`suppress-output: true` all output from the mixin (stderr and stdout) are hidden.
 
-That will get you started but make sure to read the mixin developer
-documentation for how to create a full featured mixin:
+Step outputs (below) are still collected when output is suppressed. This allows
+you to prevent sensitive data from being exposed while still collecting it from
+a command and using it in your bundle.
 
-* [Mixin Architecture](https://porter.sh/mixin-dev-guide/architecture/)
-* [Mixin Commands](https://porter.sh/mixin-dev-guide/commands/)
-* [Distributing Mixins](https://porter.sh/mixin-dev-guide/distribution/)
+### Outputs
 
-Once ready for primetime, don't forget to revisit this `README.md` and update/replace it with details on your mixin.
+The mixin supports `jsonpath` and `path` outputs.
 
-## Project Structure
 
-In the `cmd/yq` directory, you will find a cli built using [spf13/cobra](https://github.com/spf13/cobra). The CLI contains a go file for each basic capability a Mixin should implement:
+#### JSON Path
 
-* build
-* schema
-* version
-* install
-* upgrade
-* invoke
-* uninstall
+The `jsonPath` output treats stdout like a json document and applies the expression, saving the result to the output.
 
-Each of these command implementations have a corresponding Mixin implementation in the `pkg/yq` directory. Each of the commands above is wired into an empty implementation in `pkg/yq` that needs to be completed. In order to build a new Mixin, you need to complete these implementations with the relevant technology. For example, to build a [Cloud Formation](https://aws.amazon.com/cloudformation/) mixin, you might implement the methods in `pkg/yq` using the [AWS Go SDK](https://docs.aws.amazon.com/sdk-for-go/api/service/cloudformation/).
+```yaml
+outputs:
+- name: NAME
+  jsonPath: JSONPATH
+```
 
-## Provided capabilities
+For example, if the `jsonPath` expression was `$[*].id` and the command sent the following to stdout: 
 
-This skeleton mixin project brings some free capabilities:
+```json
+[
+  {
+    "id": "1085517466897181794",
+    "name": "my-vm"
+  }
+]
+```
 
-### File System Access and Context
+Then then output would have the following contents:
 
-Porter provides a [Context](https://porter.sh/src/pkg/context) package that has helpful mechanisms for accessing the File System using [spf13/afero](https://github.com/spf13/afero). This makes it easy to provide mock File System implementations during testing. The Context package also provides a mechanism to encapsualte stdin, stdout and stderr so that they can easily be passed from `cmd/yq` code to implementing `pkg/yq` code.
+```json
+["1085517466897181794"]
+```
 
-### Template and Static Asset Handling
+#### File Paths
 
-The project already includes [Packr V2](https://github.com/gobuffalo/packr/tree/master/v2) for dealing with static files, such as templates or other content that is best modeled outside of a Go file. You can see an example of this in `pkg/yq/schema.go`.
+The `path` output saves the content of the specified file path to an output.
 
-### Basic Schema
+```yaml
+outputs:
+- name: kubeconfig
+  path: /root/.kube/config
+```
 
-The project provides an implementation of the `yq schema` command that is mostly functional. To fully implement this for your mixin, you simply need to provide a valid JSON schema. For reference, consult `pkg/yq/schema/schema.json`.
+### Command
 
-### Basic Tests
+Run any yq command supported by the CLI.
 
-The project provides some very basic test skeletons that you can use as a starting point for building tests for your mixin.
+#### Command Syntax
 
-### Makefile
+```yaml
+yq:
+  description: "Description of the command"
+  arguments:
+  - ARG1
+  - ARG2
+  flags:
+    FLAGNAME: FLAGVALUE
+    REPEATED_FLAG:
+    - FLAG_VALUE1
+    - FLAG_VALUE2
+  suffix-arguments:
+  - SUFFIX_ARG1
+  suppress-output: BOOL # Defaults to false
+  outputs:
+    - name: NAME
+      jsonPath: JSONPATH
+    - name: NAME
+      path: SOURCE_FILEPATH
+```
 
-The project also includes a Makefile that will can be used to both build and install the mixin. The Makefile also includes a TODO `publish` target that shows how you might publish the mixin and generate an mixin feed for easily sharing your mixin.
+#### Command Example
+
+Change the value of b.c to cat and then capture the output.
+
+**config.yaml**
+```yaml
+b:
+  c: dog
+```
+
+```yaml
+yq:
+  description: "Set value and remember the output"
+  arguments:
+    - write
+    - config.yaml
+  flags:
+    indent: 4
+  suffix-arguments:
+    - b.c
+    - cat
+  outputs: # Capture all of stdout for use in a later step
+    - name: vars
+      regex: "(.)"
+```
+
+### Update
+
+This is a convenience function that simplifies a common task: reading in a file
+and editing it in-place. More advanced scenarios should use the write command.
+
+The update command applies the expression to all documents defined in the file
+and edits the file in-place.
+
+#### Update Syntax
+
+```yaml
+yq:
+  description: "Description of the command"
+  update:
+    file: PATH OF FILE TO UPDATE
+    expression: YQ PATH EXPRESSION
+    value: REPLACEMENT VALUE
+    style: STYLE # formatting style of the value: single, double, folded, flow, literal, tagged
+  suppress-output: BOOL # Defaults to false
+  outputs:
+    - name: NAME
+      jsonPath: JSONPATH
+    - name: NAME
+      path: SOURCE_FILEPATH
+```
+
+* [Path expression syntax](https://mikefarah.gitbook.io/yq/usage/path-expressions)
+
+#### Update Example
+
+Update the image in a Kubernetes deployment with the image inside the bundle.
+
+```yaml
+yq:
+  description: "Replace deployment image"
+  update:
+    file: manifests/deployment.yaml
+    expression: spec.template.spec.containers.(name==webserver).image
+    value: "{{bundle.images.webserver.repository}}@{{bundle.images.webserver.digest}}"
+```
+
+### Write a value
+
+Wrapper for the `yq write` command.
+
+```yaml
+yq:
+  description: "Description of the command"
+  write:
+    file: FILEPATH # Input file
+    expression: YQ PATH EXPRESSION
+    value: REPLACEMENT VALUE
+    style: STYLE # formatting style of the value: single, double, folded, flow, literal, tagged
+    script: PATH OF SCRIPT # yaml script for updating yaml
+    document: INTEGER # Defaults to 0
+    inplace: BOOL # Defaults to false
+    destination: FILEPATH # Saves stdout to the specified file, used when inplace is false
+  prettyPrint: BOOL # Defaults to false
+  toJson: BOOL # Defaults to false
+  suppress-output: BOOL  # Defaults to false
+  outputs:
+    - name: NAME
+      jsonPath: JSONPATH
+    - name: NAME
+      path: SOURCE_FILEPATH
+```
+
+```yaml
+yq:
+  description: "Replace deployment image"
+  write:
+    file: manifests/deployment.yaml
+    document: 1 # Modify the second document in the file. Defaults to 0
+    expression: spec.template.spec.containers.(name==webserver).image
+    value: "{{bundle.images.webserver.repository}}@{{bundle.images.webserver.digest}}"
+    destination: final-deployment.yaml
+```
+
+### Merge files
+
+Wrapper for the `yq merge` command.
+
+#### Merge Syntax
+
+```yaml
+yq:
+  description: "Description of Command"
+  merge:
+    files:
+      - FILEPATH_1
+      - FILEPATH_2
+    append: BOOL # Defaults to false
+    autocreate: BOOL # Defaults to true
+    inplace: BOOL # Defaults to false
+    overwrite: BOOL # Defaults to false
+    destination: FILEPATH # Saves stdout to the specified file, used when inplace is false
+  prettyPrint: BOOL # Defaults to false
+  toJson: BOOL # Defaults to false
+  suppress-output: BOOL  # Defaults to false
+  outputs:
+    - name: NAME
+      jsonPath: JSONPATH
+    - name: NAME
+      path: SOURCE_FILEPATH  
+```
+
+#### Merge Example
+
+Merge two YAML files and save the result to a json file.
+
+```yaml
+yq:
+  description: "Merge environment configuration"
+  merge:
+    files:
+      - base.yaml
+      - staging.yaml
+    destination: final.json
+  toJson: true
+  prettyPrint: true
+```
+
+[yq]: https://github.com/mikefarah/yq/releases

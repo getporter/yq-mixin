@@ -15,11 +15,11 @@ type TestMixin struct {
 func NewTestMixin(t *testing.T) *TestMixin {
 	c := context.NewTestContext(t)
 	m := &TestMixin{
-		Mixin: &Mixin{
-			Context: c.Context,
-		},
+		Mixin:       New(),
 		TestContext: c,
 	}
+
+	m.Context = c.Context
 
 	return m
 }

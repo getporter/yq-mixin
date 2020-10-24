@@ -22,10 +22,8 @@ func main() {
 }
 
 func buildRootCommand(in io.Reader) (*cobra.Command, error) {
-	m, err := yq.New()
-	if err != nil {
-		return nil, err
-	}
+	m := yq.New()
+
 	m.In = in
 	cmd := &cobra.Command{
 		Use:  "yq",
